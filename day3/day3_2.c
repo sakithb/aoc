@@ -176,7 +176,7 @@ int main() {
 
             if (gear_ratio > -1) {
                 sum += gear_ratio;
-                contents[a.y * d.width + a.x] = '~';
+                contents[a.y * d.width + a.x] = '.';
             }
         }
     }
