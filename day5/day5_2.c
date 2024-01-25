@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <setjmp.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,11 +8,64 @@
 static jmp_buf exit_buf;
 
 typedef unsigned long ulong;
+
 typedef struct {
-    ulong dst;
     ulong src;
-    ulong len;
-} MapItem;
+    ulong dest;
+    ulong offset;
+} MapRange;
+
+typedef struct {
+    MapRange *ranges;
+    int size;
+} Map;
+
+typedef struct {
+    Map *seed_to_soil;
+    Map *soil_to_fertilizer;
+    Map *fertilizer_to_water;
+    Map *water_to_light;
+    Map *light_to_temperature;
+    Map *temperature_to_humidity;
+    Map *humidity_to_location;
+} Maps;
+
+Map *init_map() {
+    Map *mapitems = malloc(sizeof(Map));
+    mapitems->size = 0;
+    mapitems->ranges = calloc(mapitems->size, sizeof(MapRange));
+
+    return mapitems;
+}
+
+void free_map(Map *map) {
+    free(map->ranges);
+    free(map);
+}
+
+void resize_map(Map *map, int new_size) {
+    MapRange *map_tmp = realloc(map->ranges, new_size * sizeof(MapRange));
+
+    if (map_tmp != NULL) {
+        map->ranges = map_tmp;
+        map->size = new_size;
+    } else {
+        longjmp(exit_buf, 1);
+    }
+}
+
+int cmp_map_range(const void *a, const void *b) {
+    MapRange *range_a = (MapRange *)a;
+    MapRange *range_b = (MapRange *)b;
+
+    if (range_a->src < range_b->src) {
+        return -1;
+    } else if (range_a->src > range_b->src) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
 
 void parse_seeds(ulong **seeds, int *seeds_size, char **c) {
     char *s = NULL;
@@ -47,7 +101,7 @@ void parse_seeds(ulong **seeds, int *seeds_size, char **c) {
     (*c) -= 1;
 }
 
-void parse_map(MapItem **map, int *map_size, char **c) {
+void parse_map(Map *map, char **c) {
     char *n = strchr(*c, '\n');
     (*c) = strchr(n + 1, '\n');
 
@@ -56,18 +110,11 @@ void parse_map(MapItem **map, int *map_size, char **c) {
         strncpy(str, n + 1, *c - n - 1);
         str[*c - n - 1] = '\0';
 
-        MapItem item;
-        sscanf(str, "%lu %lu %lu", &item.dst, &item.src, &item.len);
+        MapRange range;
+        sscanf(str, "%lu %lu %lu", &range.dest, &range.src, &range.offset);
 
-        *map_size += 1;
-        MapItem *map_tmp = realloc(*map, *map_size * sizeof(MapItem));
-
-        if (map_tmp != NULL) {
-            *map = map_tmp;
-            (*map)[*map_size - 1] = item;
-        } else {
-            longjmp(exit_buf, 1);
-        }
+        resize_map(map, map->size + 1);
+        map->ranges[map->size - 1] = range;
 
         n = *c;
         char *tmp = strchr(*c + 1, '\n');
@@ -79,45 +126,95 @@ void parse_map(MapItem **map, int *map_size, char **c) {
         }
     }
 
+    qsort(map->ranges, map->size, sizeof(MapRange), cmp_map_range);
+
+    for (int i = map->size - 1; i >= 0; i--) {
+        MapRange range = map->ranges[i];
+        MapRange new_range;
+
+        if (i == 0) {
+            continue;
+        } else {
+            MapRange prev_range = map->ranges[i - 1];
+
+            if (range.src > prev_range.src + prev_range.offset) {
+                new_range.src = prev_range.src + prev_range.offset;
+                new_range.offset = range.src - new_range.src;
+            } else {
+                continue;
+            }
+        }
+
+        new_range.dest = new_range.src;
+        resize_map(map, map->size + 1);
+        map->ranges[map->size - 1] = new_range;
+    }
+
+    qsort(map->ranges, map->size, sizeof(MapRange), cmp_map_range);
+
     (*c) -= 1;
 }
 
-ulong src_to_dst(MapItem *map, int map_size, ulong src) {
-    for (int i = 0; i < map_size; i++) {
-        MapItem item = map[i];
-        ulong offset = src - item.src;
-        if (offset >= 0 && offset < item.len) {
-            return item.dst + offset;
+void find_min_location(ulong start, ulong end, ulong *min_location, Map *map, Maps *maps) {
+    if (map == NULL) {
+        if (*min_location == 0 || start < *min_location) {
+            *min_location = start;
         }
+
+        return;
     }
 
-    return src;
+    Map *next_map;
+
+    if (map == maps->seed_to_soil) {
+        next_map = maps->soil_to_fertilizer;
+    } else if (map == maps->soil_to_fertilizer) {
+        next_map = maps->fertilizer_to_water;
+    } else if (map == maps->fertilizer_to_water) {
+        next_map = maps->water_to_light;
+    } else if (map == maps->water_to_light) {
+        next_map = maps->light_to_temperature;
+    } else if (map == maps->light_to_temperature) {
+        next_map = maps->temperature_to_humidity;
+    } else if (map == maps->temperature_to_humidity) {
+        next_map = maps->humidity_to_location;
+    } else {
+        next_map = NULL;
+    }
+
+    for (int i = 0; i < map->size; i++) {
+        MapRange *range = &map->ranges[i];
+
+        ulong range_start = range->src;
+        ulong range_end = range->src + range->offset;
+
+        if (start < range_end && end > range_start) {
+            ulong new_start = range_start > start ? range->dest : range->dest + (start - range_start);
+            ulong new_end = range_end > end ? range->dest + (end - range_start) : range->dest + range->offset;
+
+            find_min_location(new_start, new_end, min_location, next_map, maps);
+        }
+
+        if (i == 0 && start < range_start) {
+            find_min_location(start, end < range_start ? end : range_start, min_location, next_map, maps);
+        } else if (i == map->size - 1 && end > range_end) {
+            find_min_location(start < range_end ? range_end : start, end, min_location, next_map, maps);
+        }
+    }
 }
 
 int main() {
     int seeds_size = 0;
     ulong *seeds = calloc(seeds_size, sizeof(ulong));
 
-    int seed_to_soil_size = 0;
-    MapItem *seed_to_soil = calloc(seed_to_soil_size, sizeof(MapItem));
-
-    int soil_to_fertilizer_size = 0;
-    MapItem *soil_to_fertilizer = calloc(soil_to_fertilizer_size, sizeof(MapItem));
-
-    int fertilizer_to_water_size = 0;
-    MapItem *fertilizer_to_water = calloc(fertilizer_to_water_size, sizeof(MapItem));
-
-    int water_to_light_size = 0;
-    MapItem *water_to_light = calloc(water_to_light_size, sizeof(MapItem));
-
-    int light_to_temperature_size = 0;
-    MapItem *light_to_temperature = calloc(light_to_temperature_size, sizeof(MapItem));
-
-    int temperature_to_humidity_size = 0;
-    MapItem *temperature_to_humidity = calloc(temperature_to_humidity_size, sizeof(MapItem));
-
-    int humidity_to_location_size = 0;
-    MapItem *humidity_to_location = calloc(humidity_to_location_size, sizeof(MapItem));
+    Maps *maps = malloc(sizeof(Maps));
+    maps->seed_to_soil = init_map();
+    maps->soil_to_fertilizer = init_map();
+    maps->fertilizer_to_water = init_map();
+    maps->water_to_light = init_map();
+    maps->light_to_temperature = init_map();
+    maps->temperature_to_humidity = init_map();
+    maps->humidity_to_location = init_map();
 
     FILE *file = fopen("input.txt", "r");
     fseek(file, 0, SEEK_END);
@@ -132,15 +229,16 @@ int main() {
 
     if (setjmp(exit_buf) != 0) {
         free(input);
-
         free(seeds);
-        free(seed_to_soil);
-        free(soil_to_fertilizer);
-        free(fertilizer_to_water);
-        free(water_to_light);
-        free(light_to_temperature);
-        free(temperature_to_humidity);
-        free(humidity_to_location);
+
+        free_map(maps->seed_to_soil);
+        free_map(maps->soil_to_fertilizer);
+        free_map(maps->fertilizer_to_water);
+        free_map(maps->water_to_light);
+        free_map(maps->light_to_temperature);
+        free_map(maps->temperature_to_humidity);
+        free_map(maps->humidity_to_location);
+        free(maps);
 
         return 0;
     }
@@ -160,19 +258,19 @@ int main() {
                 parse_seeds(&seeds, &seeds_size, &c);
             } else {
                 if (strncmp("seed-", line, 5) == 0) {
-                    parse_map(&seed_to_soil, &seed_to_soil_size, &c);
+                    parse_map(maps->seed_to_soil, &c);
                 } else if (strncmp("soil-", line, 5) == 0) {
-                    parse_map(&soil_to_fertilizer, &soil_to_fertilizer_size, &c);
+                    parse_map(maps->soil_to_fertilizer, &c);
                 } else if (strncmp("ferti", line, 5) == 0) {
-                    parse_map(&fertilizer_to_water, &fertilizer_to_water_size, &c);
+                    parse_map(maps->fertilizer_to_water, &c);
                 } else if (strncmp("water", line, 5) == 0) {
-                    parse_map(&water_to_light, &water_to_light_size, &c);
+                    parse_map(maps->water_to_light, &c);
                 } else if (strncmp("light", line, 5) == 0) {
-                    parse_map(&light_to_temperature, &light_to_temperature_size, &c);
+                    parse_map(maps->light_to_temperature, &c);
                 } else if (strncmp("tempe", line, 5) == 0) {
-                    parse_map(&temperature_to_humidity, &temperature_to_humidity_size, &c);
+                    parse_map(maps->temperature_to_humidity, &c);
                 } else if (strncmp("humid", line, 5) == 0) {
-                    parse_map(&humidity_to_location, &humidity_to_location_size, &c);
+                    parse_map(maps->humidity_to_location, &c);
                 }
             }
         }
@@ -184,23 +282,9 @@ int main() {
 
     for (int i = 1; i < seeds_size; i += 2) {
         ulong range_start = seeds[i - 1];
-        ulong range_end = range_start + (seeds[i] - 1);
+        ulong offset = seeds[i] - 1;
 
-        printf("Range: %lu - %lu\n", range_start, range_end);
-
-        for (ulong j = range_start; j < range_end; j++) {
-            ulong soil = src_to_dst(seed_to_soil, seed_to_soil_size, j);
-            ulong fertilizer = src_to_dst(soil_to_fertilizer, soil_to_fertilizer_size, soil);
-            ulong water = src_to_dst(fertilizer_to_water, fertilizer_to_water_size, fertilizer);
-            ulong light = src_to_dst(water_to_light, water_to_light_size, water);
-            ulong temperature = src_to_dst(light_to_temperature, light_to_temperature_size, light);
-            ulong humidity = src_to_dst(temperature_to_humidity, temperature_to_humidity_size, temperature);
-            ulong location = src_to_dst(humidity_to_location, humidity_to_location_size, humidity);
-
-            if (min_location == 0 || location < min_location) {
-                min_location = location;
-            }
-        }
+        find_min_location(range_start, range_start + offset, &min_location, maps->seed_to_soil, maps);
     }
 
     printf("Min location: %lu\n", min_location);

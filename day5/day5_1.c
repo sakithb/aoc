@@ -8,10 +8,10 @@ static jmp_buf exit_buf;
 
 typedef unsigned long ulong;
 typedef struct {
-    ulong dst;
+    ulong dest;
     ulong src;
-    ulong len;
-} MapItem;
+    ulong offset;
+} MapRange;
 
 void parse_seeds(ulong **seeds, int *seeds_size, char **c) {
     char *s = NULL;
@@ -47,7 +47,7 @@ void parse_seeds(ulong **seeds, int *seeds_size, char **c) {
     (*c) -= 1;
 }
 
-void parse_map(MapItem **map, int *map_size, char **c) {
+void parse_map(MapRange **map, int *map_size, char **c) {
     char *n = strchr(*c, '\n');
     (*c) = strchr(n + 1, '\n');
 
@@ -56,11 +56,11 @@ void parse_map(MapItem **map, int *map_size, char **c) {
         strncpy(str, n + 1, *c - n - 1);
         str[*c - n - 1] = '\0';
 
-        MapItem item;
-        sscanf(str, "%lu %lu %lu", &item.dst, &item.src, &item.len);
+        MapRange item;
+        sscanf(str, "%lu %lu %lu", &item.dest, &item.src, &item.offset);
 
         *map_size += 1;
-        MapItem *map_tmp = realloc(*map, *map_size * sizeof(MapItem));
+        MapRange *map_tmp = realloc(*map, *map_size * sizeof(MapRange));
 
         if (map_tmp != NULL) {
             *map = map_tmp;
@@ -82,12 +82,12 @@ void parse_map(MapItem **map, int *map_size, char **c) {
     (*c) -= 1;
 }
 
-ulong src_to_dst(MapItem *map, int map_size, ulong src) {
+ulong src_to_dst(MapRange *map, int map_size, ulong src) {
     for (int i = 0; i < map_size; i++) {
-        MapItem item = map[i];
+        MapRange item = map[i];
         ulong offset = src - item.src;
-        if (offset >= 0 && offset < item.len) {
-            return item.dst + offset;
+        if (offset >= 0 && offset < item.offset) {
+            return item.dest + offset;
         }
     }
 
@@ -99,25 +99,25 @@ int main() {
     ulong *seeds = calloc(seeds_size, sizeof(ulong));
 
     int seed_to_soil_size = 0;
-    MapItem *seed_to_soil = calloc(seed_to_soil_size, sizeof(MapItem));
+    MapRange *seed_to_soil = calloc(seed_to_soil_size, sizeof(MapRange));
 
     int soil_to_fertilizer_size = 0;
-    MapItem *soil_to_fertilizer = calloc(soil_to_fertilizer_size, sizeof(MapItem));
+    MapRange *soil_to_fertilizer = calloc(soil_to_fertilizer_size, sizeof(MapRange));
 
     int fertilizer_to_water_size = 0;
-    MapItem *fertilizer_to_water = calloc(fertilizer_to_water_size, sizeof(MapItem));
+    MapRange *fertilizer_to_water = calloc(fertilizer_to_water_size, sizeof(MapRange));
 
     int water_to_light_size = 0;
-    MapItem *water_to_light = calloc(water_to_light_size, sizeof(MapItem));
+    MapRange *water_to_light = calloc(water_to_light_size, sizeof(MapRange));
 
     int light_to_temperature_size = 0;
-    MapItem *light_to_temperature = calloc(light_to_temperature_size, sizeof(MapItem));
+    MapRange *light_to_temperature = calloc(light_to_temperature_size, sizeof(MapRange));
 
     int temperature_to_humidity_size = 0;
-    MapItem *temperature_to_humidity = calloc(temperature_to_humidity_size, sizeof(MapItem));
+    MapRange *temperature_to_humidity = calloc(temperature_to_humidity_size, sizeof(MapRange));
 
     int humidity_to_location_size = 0;
-    MapItem *humidity_to_location = calloc(humidity_to_location_size, sizeof(MapItem));
+    MapRange *humidity_to_location = calloc(humidity_to_location_size, sizeof(MapRange));
 
     FILE *file = fopen("input.txt", "r");
     fseek(file, 0, SEEK_END);
