@@ -128,30 +128,6 @@ void parse_map(Map *map, char **c) {
 
     qsort(map->ranges, map->size, sizeof(MapRange), cmp_map_range);
 
-    // for (int i = map->size - 1; i >= 0; i--) {
-    //     MapRange range = map->ranges[i];
-    //     MapRange new_range;
-
-    //     if (i == 0) {
-    //         continue;
-    //     } else {
-    //         MapRange prev_range = map->ranges[i - 1];
-
-    //         if (range.src > prev_range.src + prev_range.offset) {
-    //             new_range.src = prev_range.src + prev_range.offset;
-    //             new_range.offset = range.src - new_range.src;
-    //         } else {
-    //             continue;
-    //         }
-    //     }
-
-    //     new_range.dest = new_range.src;
-    //     resize_map(map, map->size + 1);
-    //     map->ranges[map->size - 1] = new_range;
-    // }
-
-    // qsort(map->ranges, map->size, sizeof(MapRange), cmp_map_range);
-
     (*c) -= 1;
 }
 
