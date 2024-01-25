@@ -128,29 +128,29 @@ void parse_map(Map *map, char **c) {
 
     qsort(map->ranges, map->size, sizeof(MapRange), cmp_map_range);
 
-    for (int i = map->size - 1; i >= 0; i--) {
-        MapRange range = map->ranges[i];
-        MapRange new_range;
+    // for (int i = map->size - 1; i >= 0; i--) {
+    //     MapRange range = map->ranges[i];
+    //     MapRange new_range;
 
-        if (i == 0) {
-            continue;
-        } else {
-            MapRange prev_range = map->ranges[i - 1];
+    //     if (i == 0) {
+    //         continue;
+    //     } else {
+    //         MapRange prev_range = map->ranges[i - 1];
 
-            if (range.src > prev_range.src + prev_range.offset) {
-                new_range.src = prev_range.src + prev_range.offset;
-                new_range.offset = range.src - new_range.src;
-            } else {
-                continue;
-            }
-        }
+    //         if (range.src > prev_range.src + prev_range.offset) {
+    //             new_range.src = prev_range.src + prev_range.offset;
+    //             new_range.offset = range.src - new_range.src;
+    //         } else {
+    //             continue;
+    //         }
+    //     }
 
-        new_range.dest = new_range.src;
-        resize_map(map, map->size + 1);
-        map->ranges[map->size - 1] = new_range;
-    }
+    //     new_range.dest = new_range.src;
+    //     resize_map(map, map->size + 1);
+    //     map->ranges[map->size - 1] = new_range;
+    // }
 
-    qsort(map->ranges, map->size, sizeof(MapRange), cmp_map_range);
+    // qsort(map->ranges, map->size, sizeof(MapRange), cmp_map_range);
 
     (*c) -= 1;
 }
@@ -199,6 +199,14 @@ void find_min_location(ulong start, ulong end, ulong *min_location, Map *map, Ma
             find_min_location(start, end < range_start ? end : range_start, min_location, next_map, maps);
         } else if (i == map->size - 1 && end > range_end) {
             find_min_location(start < range_end ? range_end : start, end, min_location, next_map, maps);
+        }
+
+        if (i > 0) {
+            MapRange *prev_range = &map->ranges[i - 1];
+
+            if (start < range_start && start > prev_range->src + prev_range->offset) {
+                find_min_location(start, end < range_start ? end : range_start, min_location, next_map, maps);
+            }
         }
     }
 }
