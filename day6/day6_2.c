@@ -28,6 +28,7 @@ int main() {
         }
     }
 
+    fclose(file);
     ll n_solutions = 0;
 
     for (ll charged_ms = 0; charged_ms <= race_time; charged_ms++) {
