@@ -7,6 +7,8 @@ static jmp_buf exit_buf;
 
 typedef struct Node Node;
 typedef struct Network Network;
+typedef struct Path Path;
+typedef long long ll;
 
 struct Node {
     char *name;
@@ -19,6 +21,19 @@ struct Network {
     int capacity;
     Node **nodes;
 };
+
+struct Path {
+    Node *current;
+    int steps;
+};
+
+ll gcd(ll a, ll b) {
+    if (b == 0) {
+        return a;
+    }
+
+    return gcd(b, a % b);
+}
 
 void parse_node_name(char *line, Network *network) {
     Node *node = malloc(sizeof(Node));
@@ -82,12 +97,12 @@ int main() {
     network.capacity = 10;
     network.nodes = calloc(network.capacity, sizeof(Node *));
 
-    int current_nodes_size = 0;
-    int current_nodes_capacity = 10;
-    Node **current_nodes = calloc(current_nodes_size, sizeof(Node *));
+    int paths_size = 0;
+    int paths_capacity = 10;
+    Path *paths = calloc(paths_capacity, sizeof(Path));
 
     if (setjmp(exit_buf) != 0) {
-        free(current_nodes);
+        free(paths);
 
         for (int i = 0; i < network.size; i++) {
             free(network.nodes[i]->name);
@@ -99,9 +114,6 @@ int main() {
         return 0;
     }
 
-    int steps = 0;
-    char *instruction = input;
-
     for (int i = map_start; i < fsize; i += 17) {
         parse_node_name(input + i, &network);
     }
@@ -110,54 +122,56 @@ int main() {
         Node *node = network.nodes[(i - (map_start)) / 17];
 
         if (node->name[2] == 'A') {
-            if (current_nodes_size == current_nodes_capacity) {
-                current_nodes_capacity *= 2;
-                Node **tmp_nodes = realloc(current_nodes, current_nodes_capacity * sizeof(Node *));
+            Path path;
+            path.steps = 0;
+            path.current = node;
 
-                if (tmp_nodes == NULL) {
+            if (paths_size == paths_capacity) {
+                paths_capacity *= 2;
+                Path *tmp_paths = realloc(paths, paths_capacity * sizeof(Path));
+
+                if (tmp_paths == NULL) {
                     longjmp(exit_buf, 1);
                 } else {
-                    current_nodes = tmp_nodes;
+                    paths = tmp_paths;
                 }
             }
 
-            current_nodes[current_nodes_size] = node;
-            current_nodes_size += 1;
+            paths[paths_size] = path;
+            paths_size += 1;
         }
 
         parse_node_data(input + i, node, &network);
     }
 
-    int completed_current_nodes = 0;
+    for (int i = 0; i < paths_size; i++) {
+        char *instruction = input;
+        Path *path = paths + i;
 
-    while (completed_current_nodes < current_nodes_size) {
-        completed_current_nodes = 0;
-
-        for (int i = 0; i < current_nodes_size; i++) {
-            Node *current = current_nodes[i];
-
+        while (path->current->name[2] != 'Z') {
             if (*instruction == 'L') {
-                current = current->left;
+                path->current = path->current->left;
             } else if (*instruction == 'R') {
-                current = current->right;
+                path->current = path->current->right;
             }
 
-            if (current->name[2] == 'Z') {
-                completed_current_nodes += 1;
+            if (instruction - input == instructions_size - 1) {
+                instruction = input;
+            } else {
+                instruction += 1;
             }
 
-            current_nodes[i] = current;
+            path->steps += 1;
         }
-
-        if (instruction - input == instructions_size - 1) {
-            instruction = input;
-        } else {
-            instruction += 1;
-        }
-
-        steps += 1;
     }
 
-    printf("%d\n", steps);
+    ll result = paths[0].steps;
+
+    for (int i = 1; i < paths_size; i++) {
+        Path *path = paths + i;
+        result = ((ll)path->steps * result) / gcd((ll)path->steps, result);
+    }
+
+    printf("%lld\n", result);
     longjmp(exit_buf, 0);
 }
