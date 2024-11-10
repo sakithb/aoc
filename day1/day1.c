@@ -94,7 +94,7 @@ int main()
             }
         }
 
-        char str[2];
+        char str[3];
         sprintf(str, "%c%c", first, last);
 
         sum += strtol(str, (char **)NULL, 10);
