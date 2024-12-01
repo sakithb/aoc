@@ -1,107 +1,80 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h> 
 
-bool is_substr(char *str, char *sub, int idx) {
-    for (int i = 0; i < strlen(sub); i++) {
-        if ((idx + i) > (strlen(str) - 1)) {
-            return false;
-        }
-
-        char subchar = sub[i];
-        char strchar = str[idx + i];
-
-        if (subchar != strchar) {
-            return false;
-        }
-    }
-
-    return true;
+int cmp(const void *a, const void *b) {
+	int ai = *(const int*)a;
+    int bi = *(const int*)b;
+	return (ai > bi) - (ai < bi);
 }
 
-int main()
-{
-	FILE* input = fopen("./day1_input.txt", "r");
-    char line[255];
-    long sum = 0;
+int main(void) {
 
-    while (fgets(line, 255, input) != NULL) {
-        char first = '\0';
-        char last = '\0';
+	FILE *f = fopen("day1_input.txt", "r");
 
-        for (int i = 0; i <= strlen(line); i++) {
-            char letter = line[i];
+	fseek(f, 0, SEEK_END);
+	long s = ftell(f);
+	char *b = malloc(s);
+	fseek(f, 0, SEEK_SET);
+	fread(b, 1, s, f);
 
-            if (letter >= 48 && letter <= 57) {
-                if (first == '\0') {
-                    first = letter;
-                    last = letter;
-                } else {
-                    last = letter;
-                }
-            } else if (letter >= 65 && letter <= 122) {
-                char num = '\0';
+	fclose(f);
 
-                switch(letter) {
-                    case 'o':
-                        if (is_substr(line, "one", i)) {
-                            num = '1';
-                        }
-                        break;
-                    case 't':
-                        if (is_substr(line, "two", i)) {
-                            num = '2';
-                        } else if (is_substr(line, "three", i)) {
-                            num = '3';
-                        }
-                        break;
-                    case 'f':
-                        if (is_substr(line, "four", i)) {
-                            num = '4';
-                        } else if (is_substr(line, "five", i)) {
-                            num = '5';
-                        }
-                        break;
-                    case 's':
-                        if (is_substr(line, "six", i)) {
-                            num = '6';
-                        } else if (is_substr(line, "seven", i)) {
-                            num = '7';
-                        }
-                        break;
-                    case 'e':
-                        if (is_substr(line, "eight", i)) {
-                            num = '8';
-                        }
-                        break;
-                    case 'n':
-                        if (is_substr(line, "nine", i)) {
-                            num = '9';
-                        }
-                        break;
-                }
+	int lines = s / 14;
 
-                if (num != '\0') {
-                    if (first == '\0') {
-                        first = num;
-                        last = num;
-                    } else {
-                        last = num;
-                    }
-                }
-            }
-        }
+	int l[lines];
+	int r[lines];
 
-        char str[3];
-        sprintf(str, "%c%c", first, last);
+	for (int i = 0; i < lines; i++) {
+		char left[6];
+		strncpy(left, b + (i * 14), 5);
+		left[5] = 0;
 
-        sum += strtol(str, (char **)NULL, 10);
-    };
+		char rght[14];
+		strncpy(rght, b + (i * 14) + 8, 5);
+		rght[5] = 0;
 
-	fclose(input);
-    printf("%ld\n", sum);
+		char *e;
+
+		l[i] = strtol(left, &e, 10);
+		r[i] = strtol(rght, &e, 10);
+	}
+
+	qsort(l, lines, sizeof(int), cmp);
+	qsort(r, lines, sizeof(int), cmp);
+
+	int dist[lines];
+
+	for (int i = 0; i < lines; i++) {
+		dist[i] = l[i] - r[i];
+		if (dist[i] < 0) {
+			dist[i] *= -1;
+		}
+	}
+
+	int sum = 0;
+
+	for (int i = 0; i < lines; i++) {
+		sum += dist[i];
+	}
+
+	printf("%d\n", sum);
+
+	int scr = 0;
+
+	for (int i = 0; i < lines; i++) {
+		int n = 0;
+		for (int j = 0; j < lines; j++) {
+			if (l[i] == r[j]) {
+				n++;
+			}
+		}
+		scr += l[i] * n;
+	}
+
+	printf("%d\n", scr);
+
+	free(b);
 
 	return 0;
-}
+};
