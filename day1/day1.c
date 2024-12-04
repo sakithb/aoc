@@ -9,7 +9,6 @@ int cmp(const void *a, const void *b) {
 }
 
 int main(void) {
-
 	FILE *f = fopen("day1_input.txt", "r");
 
 	fseek(f, 0, SEEK_END);
