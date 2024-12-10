@@ -9,7 +9,7 @@ OUT := $(SRC).out
 
 %.rs.out: $(SRC)
 	@mkdir -p $(dir $(OUT))
-	rustc -o $(OUT) $(SRC)
+	rustc -g -o $(OUT) $(SRC)
 
 run: $(OUT)
 	cd $(dir $(OUT)); ./$(notdir $(OUT))
